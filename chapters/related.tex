@@ -2,7 +2,7 @@
 In this chapter we revise existing normal estimation approaches and justify the choice of geometrical method on top of which we build our pipeline.
 
 \section{Plane fitting}
-In most cases normals are calculated using plane fitting of a point neighbourhood \cite{normal_est}. Given a set of 3d points $P = \left[\bm{p}_1 \dots \bm{p}_k\right]$ one should solve a task of finding best fitting plane. Plane is represented using normal vector $\bm{n}$ and distance to origin $d$. Below several existing approaches are revised.
+In most cases normals are calculated through plane fitting of a point neighbourhood \cite{normal_est}. Given a set of 3d points $P = \left[\bm{p}_1 \dots \bm{p}_k\right]$ one should solve a task of finding best fitting plane. Plane is represented by normal vector $\bm{n}$ and distance to origin $d$. Several existing approaches are revised below.
 
 \subsection{Centered SVD} \label{center-svd}
 Most popular estimation method consist of centering point matrix and then solving following minimization task:
@@ -13,26 +13,28 @@ As showed in \cite{surface_rec} this can be done by applying SVD on $3 \times 3$
 \[
 C = \left(P - \bar{P}\right) \left(P^\top - \bar{P}^\top \right)
 \]
-and then setting $\bm{n}$ to singular vector corresponding to the smallest singular value. It is also worth mentioning that this method is equivalent to applying PCA on matrix $P$ and then choosing component with the least variance. Because of this some researchers may refer to this method as \textit{PlanePCA} \cite{normal_est}.
+and then setting $\bm{n}$ to singular vector corresponding to the smallest singular value. It is also worth mentioning that this method is equivalent to applying PCA on matrix $P$ and then choosing component with the least variance. Thus, this algorithm may also be referred as \textit{PlanePCA} \cite{normal_est}.
 
-Described method, however, suffers from necessity to recalculate data cenetering each time new point is added to data matrix.
+Described method, however, suffers from necessity to recalculate data centering each time new point is added to data matrix.
 
 \subsection{Homogeneous SVD} \label{homog-svd}
-Another approach exists which allows to calculate plane parameters without centering of data points.
-Following minimization task is solved:
+There is another approach which allows to calculate plane parameters without data centering.
+The following minimization task is solved:
 \[
 \min_{\bm{b}} \| \left[P^\top \mathbbm{1}_k \right] \bm{b} \|_2,
 \]
 where $\bm{b}$ stands for $\begin{psmallmatrix}
 \bm{n} \\
 d
-\end{psmallmatrix}$. Similarly to section \ref{center-svd} one can solve this task using SVD decomposition of $4 \times 4$ matrix
+\end{psmallmatrix}$. Similarly to section \ref{center-svd} this task can be solved with SVD decomposition of $4 \times 4$ matrix
 \[
 C = \left[P^\top \mathbbm{1}_k \right]^\top \left[P^\top \mathbbm{1}_k \right].
 \]
-As soon as resulting vector $\bm{b}$ is unitary, one should afterwards rescale vector $\bm{n}$ to meet requirement $\|\bm{n}\|_2 = 1$. Oppositely to \textit{Centered SVD} this method supports incremental updates meaning no recentering of data needed; we show how one can effectively use this property in section \ref{integ-im}.
+As soon as resulting vector $\bm{b}$ is unitary, one should afterwards rescale vector $\bm{n}$ to meet requirement $\|\bm{n}\|_2 = 1$. Oppositely to \textit{Centered SVD} this method supports incremental updates meaning no recentering of data needed; we show how this property can be effectively used in section \ref{integ-im}.
 
 
-\section{Deep neural network approaches}
+\section{Known normal estimation algorithms}
 
-Several attempts were taken to estimate normals using deep neural network approaches. They include work "Deep Surface Normal Estimation with Hierarchical RGB-D Fusion", where researchers tried to combine rgb and depth inputs to 
+Several attempts were taken to estimate normals using deep neural network architectures. Current state-of-the-art approach is \cite{deep_surf}, where researchers tried to combine RGB and depth inputs to predict normals. Another interesting work is \cite{adaptive-neighborhood}, where idea of multiscale input is implemented but algorithm is unsupervised.
+
+In our work we tried to effectively combine known best-practises with modern technologies and create reliable normal estimation algorithm.
