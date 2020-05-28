@@ -1,21 +1,23 @@
 \chapter{Multiscale normal estimation} \label{multiscale-normal-estimation}
 
-Main direction of our work was to build an end-to-end pipeline for estimating normals. Our task is formulated as follows: given a raw depth image $I^d$ of shape $H \times W$ algorithm should output estimated normals $I^n$ of shape $H \times W \times 3$ also satisfying requirement 
+The main direction of our work was to build an end-to-end pipeline for estimating normals. Our task is formulated as follows: given a raw depth image $I^d$ of shape $H \times W$ the algorithm should output estimated normals $I^n$ of shape $H \times W \times 3$ also satisfying requirement 
 \begin{equation}
 \forall i,j\ \|I^n\left[i, j, :\right]\|_2 = 1. \label{eq:1}
 \end{equation}
 
-We decided to concentrate only on using depth input without relying on color channels; also we did not solve task of missing depth inpainting, meaning proposed method works only for valid pixels.
+We decided to concentrate only on using depth input without relying on color channels; also, we did not solve the task of missing depth inpainting, meaning the proposed method works only for valid pixels.
 
 \section{Motivation}
 
-In our work we tested an idea that final normals field $I^n$ should be somehow combined from normals estimated on different scales. Motivation for this is following. Some regions of picture are planar or have large curvature radius. Normals on these regions should be estimated with large neighbourhood to filter unneeded noise and artifacts. However if similar scale normal estimation is applied to whole image, important information about sharp edges and surfaces with small curvature radius will be lost. Usually, scale becomes a hyperparameter of a normal estimation algorithm which is hard to tune. In our work we tried to tackle this issue by fusing all these normals field, so our approach is hyperparameter-free.
+In our work, we tested the idea that the final normals field $I^n$ should be somehow combined from normals estimated on different scales. The motivation for this is following. Some regions of the picture are planar or have a large curvature radius. Normals on these regions should be estimated with a large neighborhood to filter unneeded noise and artifacts. However, if a similar scale normal estimation is applied to the whole image, relevant information about sharp edges and surfaces with a small curvature radius will be lost. Usually, scale becomes a hyperparameter of a normal estimation algorithm, which is hard to tune. In our work, we tried to tackle this issue by fusing all these normals fields, so our approach is hyperparameter-free.
 
-We solve fusion task using neural network. This task is pixel-to-pixel prediction so we decided to use fully-convolutional network architecture as soon as it performed very well in tasks of semantic segmentation \cite{fcn}. In section \ref{exp} we show results of training two fully-convoluitional networks: simple network with sequntial convolutions and UNet \cite{unet} like architecture with downsampling and upsampling layers and residual connections.
+We solve the fusion task using a neural network. This task is pixel-to-pixel prediction, so we decided to use fully-convolutional network architecture as soon as it performed very well in tasks of semantic segmentation \cite{fcn}. In section \ref{exp} we show results of training two fully-convolutional networks: simple network with sequential convolutions and UNet \cite{unet} like architecture with downsampling and upsampling layers and residual connections.
 
 \section{Method} \label{method}
 
-Our method starts from estimating normals on different scales. We use \textit{Homogeneous SVD} method described in section \ref{homog-svd}. To form a set of points $P$ we choose all pixels lying inside a square window of size $w$. Thus, by varying window size we can obtain normals $\left\{I^n_{w_i}\right\}$ estimated on different scales $\mathcal{W} = \left\{w_i\right\}$. In our experiments we set $\mathcal{W} = \left\{2, 5, 10, 20, 40\right\}$. Complexity of calculating $\left\{I^n_{w_i}\right\}$ is computationally expensive and grows quadratically with increasing  $w_i$. In section \ref{integ-im} we show how this complexity can be reduced.
+Our method starts from estimating normals on different scales. We use \textit{Homogeneous SVD} method described in section \ref{homog-svd}. To form a set of points $P$ we choose all pixels lying inside a square window of size $w$. Thus, by varying window size we can obtain normals $\left\{I^n_{w_i}\right\}$ estimated on different scales $\mathcal{W} = \left\{w_i\right\}$. In our experiments we set $\mathcal{W} = \left\{2, 5, 10, 20, 40\right\}$. Examples of normals estimated on different scales can be found on figure \ref{fig:diff_scales}.
+
+Calculating $\left\{I^n_{w_i}\right\}$ is computationally expensive, complexity grows quadratically with increasing  $w_i$. In section \ref{integ-im} we show how this complexity can be reduced.
 
 \begin{figure}
 \caption{Example of normals estimated on different scales}
@@ -24,22 +26,34 @@ Our method starts from estimating normals on different scales. We use \textit{Ho
 \label{fig:diff_scales}
 \end{figure}
 
-Examples of normals estimated on different scales can be found on figure \ref{fig:diff_scales}.
+After obtaining $\left\{I^n_{w_i}\right\}$ we train a fully-convolutional neural network with input shape $\left|\mathcal{W}\right| \times H \times W \times 3$ and output shape $H \times W \times 3$. To satisfy the requirement \ref{eq:1} we afterward normalize final normals field $I^n$ along the last axis. In our work, we implemented two fusion neural networks:
+\begin{itemize}
+    \item simple network consisting of sequential convolutions on top of each scale; the scheme of this network can be found of figure \ref{fig:fcn}; in table \ref{table:qual} we refer to this architecture as \textbf{FCN};
+    \item UNet-like \cite{unet} architecture with downsampling and upsampling layers and residual connections; the scheme of this network can be found on figure \ref{fig:unet}; in table \ref{table:qual} we refer to this architecture as \textbf{UNet}.
+\end{itemize}
 
-After obtaining $\left\{I^n_{w_i}\right\}$ we train a fully-convolutional neural network with input shape $\left|W\right| \times H \times W \times 3$ and output shape $H \times W \times 3$. To satisfy requirement \ref{eq:1} we afterwards normalize final normals field $I^n$ along last axis.
+\begin{figure}
+\caption{Fully convolutional network}
+\centering
+\includegraphics[width=\textwidth]{images/Screen Shot 2020-05-27 at 7.47.52 PM.png}
+\label{fig:fcn}
+\end{figure}
 
-\section{Dataset}
-
-Training a neural network requires convenient ground truth. Recently well estimated normals suitable to use as ground truth were not available, for example widely used NUYv2 dataset contained geometrically estimated normals and thus was quite noisy. This problem was addressed by several researchers \cite{matterport, physically-based-rendering}. In our work we use Matterport dataset \cite{matterport}, which contain rich information about indoor environments including multi-view reconstructed meshes and normals. This data has been used extensively since Matterport dataset had been published \cite{deep_surf, deep_depth_compl}; many usages proved that it is quite reliable to be used as ground truth for normal estimation tasks.
+\begin{figure}
+\caption{UNet-like convolutional network}
+\centering
+\includegraphics[width=\textwidth]{images/Screen Shot 2020-05-27 at 7.51.30 PM.png}
+\label{fig:unet}
+\end{figure}
 
 \section{Multidimensional integral images} \label{integ-im}
 
-Running multiscale normal estimation algorithm from section \ref{method} would be computationally expensive. For each of scales from $\mathcal{W}$ for each pixel from $I^d$ one has to calculate $4 \times 4$ matrix $C_{i,j,w} = \left[P_{i,j,w}^\top \mathbbm{1}_{w^2} \right]^\top \left[P_{i,j,w}^\top \mathbbm{1}_{w^2} \right]$ and then find SVD of it. Here $P_{i,j,w}$ denotes all points lying inside $w$-sized square window around pixel with coordinates $i$, $j$. Assuming complexity of $4  \times 4$ SVD is constant, resulting complexity of this approach would be 
+Running multiscale normal estimation algorithm from section \ref{method} would be computationally expensive. For each of scales from $\mathcal{W}$ for each pixel from $I^d$ one has to calculate $4 \times 4$ matrix $C_{i,j,w} = \left[P_{i,j,w}^\top \mathbbm{1}_{w^2} \right]^\top \left[P_{i,j,w}^\top \mathbbm{1}_{w^2} \right]$ and then find SVD of it. Here $P_{i,j,w}$ denotes all points lying inside the $w$-sized square window around the pixel with coordinates $i$, $j$. Assuming the complexity of $4  \times 4$ SVD is constant, the resulting complexity of this approach would be 
 \[
 O\left(\left|\mathcal{W}\right| \times H \times W \times w_{max} ^ 2\right).
 \]
 
-To avoid recalculations of matrix $C$ following approach is implemented in our work. We precalculate matrix
+To avoid recalculations of the matrix $C$ following approach is implemented in our work. We precalculate matrix
 \[
 X = 
 \begin{pmatrix}
@@ -61,14 +75,14 @@ Now $C_{i,j,w}$ can be calculated as follows
 C_{i,j,w} = \sum_{k, l \in N_w(i, j)} X[k,l,:,:],
 \label{eq:sum}
 \]
-assuming that $N_w(i, j)$ contains all pixels inside $w$-sized window around pixel $(i, j)$.
+assuming that $N_w(i, j)$ contains all pixels inside the $w$-sized window around the pixel $(i, j)$.
 
-Complexity of new approach is 
+The complexity of new approach is 
 \[
 O\left(H \times W + \left|\mathcal{W}\right| \times H \times W \times w_{max} ^ 2\right).
 \]
 
-Complexity did not improve as soon as we replaced matrix multiplication with summation which both have complexity of squared window size $w^2$. However, another trick can be applied to get rid of summation. We create a multidimensional \textit{Integral Image} matrix\footnote{Originally known as \textit{Summed-Area Table} \cite{integral-image}}
+The complexity did not improve as soon as we replaced matrix multiplication with the summation, which both have the complexity of squared window size $w^2$. However, another trick can be applied to get rid of summation. We create a multidimensional \textit{Integral Image} matrix\footnote{Originally known as \textit{Summed-Area Table} \cite{integral-image}}
 \[
 S = 
 \begin{pmatrix}
@@ -91,7 +105,7 @@ By using integral images we can effectively get rid of summation \ref{eq:sum}. T
 O\left(H \times W + \left|\mathcal{W}\right| \times H \times W \right) = O\left(\left|\mathcal{W}\right| \times H \times W \right).
 \]
 
-Even more performance profit may be achieved if one executes operation \ref{eq:sum_ii} as a convolution over matrix $I$ with $(w + 1) \times (w + 1)$ kernel 
+Even more performance profit may be achieved if one executes operation \ref{eq:sum_ii} as a convolution over the matrix $I$ with $(w + 1) \times (w + 1)$ kernel 
 \[
 K = 
 \begin{pmatrix}
@@ -103,13 +117,13 @@ K =
 \end{pmatrix}.
 \]
 
-Comparison of different implementation performances can be found in table \ref{table:perf}.
+The comparison of different implementation performances can be found in table \ref{table:perf}.
 
 \begin{table}
 \centering
 \begin{tabular}{ | c | c | c | c | c | }
  \hline
- & Naive implementation & Integral images & Integral images + conv & open3d \\ 
+ & Naive & Integral images & Integral images + conv & open3d \cite{open3d} \\ 
  \hline
  Precalculation & - & 0.5s & 0.5s  & - \\  
  \hline
@@ -118,6 +132,6 @@ Comparison of different implementation performances can be found in table \ref{t
  All & 10s & 4s  & \textbf{1.5s}  & 5s \\
  \hline
 \end{tabular}
-\caption{Comparison of normal estimation algorithms performances.}
+\caption{Comparison of normal estimation algorithms performances for $\left|\mathcal{W}\right| = 5$ (without NN inference).}
 \label{table:perf}
 \end{table}
